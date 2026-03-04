@@ -1,0 +1,34 @@
+#!/bin/bash
+
+TEXT="$1"
+VOICE="$2"
+SD_RATE_RAW="$3"
+SD_PITCH_RAW="$4"
+SD_VOLUME_RAW="$5"
+# LANGUAGE="$6" # Not used
+
+# Truncate decimal places to integer (0.00 -> 0)
+SD_RATE=${SD_RATE_RAW%.*}
+SD_PITCH=${SD_PITCH_RAW%.*}
+SD_VOLUME=${SD_VOLUME_RAW%.*}
+
+# Set default values (fallback if empty)
+SD_RATE=${SD_RATE:-0}
+SD_PITCH=${SD_PITCH:-0}
+SD_VOLUME=${SD_VOLUME:-0}
+
+# Rate conversion
+[[ $SD_RATE -ge 0 ]] && RATE="+$SD_RATE%" || RATE="$SD_RATE%"
+# Pitch conversion
+[[ $SD_PITCH -ge 0 ]] && PITCH="+$SD_PITCH""Hz" || PITCH="$SD_PITCH""Hz"
+# Volume conversion
+[[ $SD_VOLUME -ge 0 ]] && VOLUME="+$SD_VOLUME%" || VOLUME="$SD_VOLUME%"
+
+# Execute with all parameters applied
+~/edge-tts/venv/bin/edge-tts \
+    -v "$VOICE" \
+    -t "$TEXT" \
+    "--rate=$RATE" \
+    "--pitch=$PITCH" \
+    "--volume=$VOLUME" \
+    | /usr/bin/mpg123 -

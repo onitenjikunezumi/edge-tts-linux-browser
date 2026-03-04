@@ -1,0 +1,18 @@
+# VS Code
+.vscode/
+*.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# System / OS
+.DS_Store
+*~
+*.swp
+
+# Local/Temp
+tmp/
