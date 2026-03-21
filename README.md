@@ -22,7 +22,13 @@ sudo apt install speech-dispatcher mpg123
 The installation script sets up `edge-tts` in `~/edge-tts` and configures `~/.config/speech-dispatcher` to use it.
 
 1. Clone this repository somewhere in your home directory.
+   ```bash
+   git clone https://github.com/onitenjikunezumi/edge-tts-linux-browser.git
+   ```
 2. Navigate to the cloned directory.
+   ```bash
+   cd edge-tts-linux-browser
+   ```
 3. Run the installation script:
    ```bash
    bash ./INSTALL.sh

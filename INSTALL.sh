@@ -123,7 +123,7 @@ cat <<EOF
 EOF
 read -p "(Press Enter to start the test) " choice
 echo "Reading aloud short English phrases using the command-line tool (spd-say)."
-spd-say -l en "This is a test of edge tts using speech dispatcher." -w
+spd-say -l en-us "This is a test of edge tts using speech dispatcher." -w
 read -p "Did you hear the edge-tts voice? (y/n): " choice
 if [ "$choice" != "y" -a "$choice" != "Y" ]; then
     cat <<EOF
