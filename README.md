@@ -1,5 +1,9 @@
 # EDGE-TTS-LINUX-BROWSER
 
+> [!WARNING]
+> **Note (March 2026):** Text-to-speech in Chromium on Linux is currently not working for languages other than English (such as Japanese). This issue appears to be a side effect of security updates related to **CVE-2026-3916**. It looks as though these changes might be preventing non-English text from being correctly handed over to `speech-dispatcher`. At this time, it seems we must wait for an official fix from the Chromium project.
+
+
 The goal of this project is to bring fluent, multilingual speech synthesis to browsers on Linux platforms like Raspberry Pi OS.
 
 To achieve this, we leverage `edge-tts`, a Python library that allows you to use Edge's online text-to-speech service on the desktop. Integrating `edge-tts` with browsers requires configuring `speech-dispatcher`. Our script automates this configuration, allowing you to complete the setup in a single step.
