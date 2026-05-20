@@ -21,7 +21,7 @@ Tested on Raspberry Pi OS Trixie (Debian 13), but it should work on many other L
 
 For a quick, one-line installation, run the following command:
 ```bash
-curl -sSfL https://raw.githubusercontent.com/onitenjikunezumi/edge-tts-linux-browser/main/.github/install.sh | bash
+bash <( curl -sSfL https://raw.githubusercontent.com/onitenjikunezumi/edge-tts-linux-browser/main/.github/install.sh )
 ```
 
 If you prefer to inspect the project files before installing, follow these steps:

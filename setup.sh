@@ -156,13 +156,13 @@ if [ -n "$apt_packages" ]; then
     subsection "The following packages are missing:"
     echo -e "packages: $apt_packages\n"
     if command -v apt >/dev/null 2>&1; then    
-	if sudo -v; then
-	    if yesno "Would you like to install them now?"; then
-		sudo apt update
-		sudo apt install -y $apt_packages
-		apt_packages_installed=0
-	    fi
-	fi
+        if yesno "Would you like to install them now?"; then
+            if sudo apt update && sudo apt install -y $apt_packages; then
+                apt_packages_installed=0
+            else
+                echo "Error: Package installation failed. Please check your permissions or network."
+            fi
+        fi
     fi
 
     if [ "$apt_packages_installed" != 0 ]; then
