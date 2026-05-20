@@ -70,7 +70,7 @@ Chromium does not enable `speech-dispatcher` support by default. **Therefore, to
 
 2. Open a terminal and run the following command:
    ```bash
-   chromium-browser --enable-speech-dispatcher
+   chromium --enable-speech-dispatcher
    ```
 
 ### Permanent Configuration
