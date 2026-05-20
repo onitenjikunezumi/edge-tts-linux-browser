@@ -25,7 +25,7 @@ SD_VOLUME=${SD_VOLUME:-0}
 [[ $SD_VOLUME -ge 0 ]] && VOLUME="+$SD_VOLUME%" || VOLUME="$SD_VOLUME%"
 
 # Execute with all parameters applied
-~/edge-tts/venv/bin/edge-tts \
+~/.local/share/edge-tts-linux-browser/venv/bin/edge-tts \
     -v "$VOICE" \
     -t "$TEXT" \
     "--rate=$RATE" \

@@ -1,29 +1,30 @@
 # EDGE-TTS-LINUX-BROWSER
 
-> [!WARNING]
-> **Note (March 2026):** Text-to-speech in Chromium on Linux is currently not working for languages other than English (such as Japanese). This issue appears to be a side effect of security updates related to **CVE-2026-3916**. It looks as though these changes might be preventing non-English text from being correctly handed over to `speech-dispatcher`. At this time, it seems we must wait for an official fix from the Chromium project.
+Transform your Linux browser's text-to-speech from robotic to natural. This project integrates Microsoft Edge's high-quality, neural TTS voices directly into your web browser using `edge-tts` and `speech-dispatcher`.
 
+### How It Works
+Modern browsers use the **Web Speech API** for text-to-speech. On Linux, this API typically communicates with **Speech Dispatcher**.
+This project acts as a bridge:
+`Browser` → `Speech Dispatcher` → `Custom Wrapper Script` → `edge-tts (Neural Cloud Voices)`
 
-The goal of this project is to bring fluent, multilingual speech synthesis to browsers on Linux platforms like Raspberry Pi OS.
+### Features
+- **Natural Voices:** Access Microsoft Edge's neural TTS engines (multilingual).
+- **Seamless Integration:** Works with any website using the standard Web Speech API.
+- **One-Step Setup:** Automated configuration for Raspberry Pi OS and other Debian-based distros.
 
-To achieve this, we leverage `edge-tts`, a Python library that allows you to use Edge's online text-to-speech service on the desktop. Integrating `edge-tts` with browsers requires configuring `speech-dispatcher`. Our script automates this configuration, allowing you to complete the setup in a single step.
+Tested on Raspberry Pi OS Trixie (Debian 13), but it should work on many other Linux distributions.
 
-We have also prepared a functional test using FeedDeLingo, an AI-powered language learning web app. You can use its text-to-speech feature to listen to news articles from around the world, allowing you to verify the quality of the multilingual speech synthesis provided by edge-tts.
-
-Tested on Raspberry Pi OS Trixie, but it should work on many other Linux distributions.
-
-## Requirements
-
-You need to install `speech-dispatcher` and `mpg123` beforehand. You can install them using the following commands:
-
-```bash
-sudo apt update
-sudo apt install speech-dispatcher mpg123
-```
+> [!IMPORTANT]
+> This setup works best with native packages (`.deb`). Browsers installed via **Snap** or **Flatpak** may have sandbox restrictions that prevent communication with Speech Dispatcher.
 
 ## Installation
 
-The installation script sets up `edge-tts` in `~/edge-tts` and configures `~/.config/speech-dispatcher` to use it.
+For a quick, one-line installation, run the following command:
+```bash
+curl -sSfL https://raw.githubusercontent.com/onitenjikunezumi/edge-tts-linux-browser/main/.github/install.sh | bash
+```
+
+If you prefer to inspect the project files before installing, follow these steps:
 
 1. Clone this repository somewhere in your home directory.
    ```bash
@@ -33,22 +34,44 @@ The installation script sets up `edge-tts` in `~/edge-tts` and configures `~/.co
    ```bash
    cd edge-tts-linux-browser
    ```
-3. Run the installation script:
+3. Run the setup script:
    ```bash
-   bash ./INSTALL.sh
+   bash ./setup.sh
    ```
+   
+### Installed Files and Directories
 
-After running the script, the setup for `edge-tts` and `speech-dispatcher` will be complete. You will also have the option to test the setup using FeedDeLingo.
+- **~/.local/share/edge-tts-linux-browser:** edge-tts core and speech-dispatcher wrapper scripts.
+- **~/.config/speech-dispatcher:** speech-dispatcher configuration files.
+
+### Required Packages
+
+The installation script will check for and help you install the following dependencies:
+
+- python3, python3-venv
+- speech-dispatcher
+- mpg123
+
+## Usage
+Once installed, your browser will have access to new "Edge" voices.
+1. Restart your browser (following the Chromium instructions below if applicable).
+2. Open any site that supports text-to-speech.
+3. Select an Edge voice from the site's voice settings.
+
+To verify your installation, we recommend testing with **FeedDeLingo**, an AI-powered language learning app that utilizes multi-language synthesis. This test is conveniently integrated into the `setup.sh` script, which automatically handles tedious tasks like launching your browser with the required flags.
 
 ## Configuring Chromium
 
-Chromium (not Google Chrome) does not enable `speech-dispatcher` support by default. **Therefore, to use the text-to-speech capabilities configured by this project, you must launch Chromium with a specific flag.**
+Chromium does not enable `speech-dispatcher` support by default. **Therefore, to use the text-to-speech capabilities configured by this project, you must launch Chromium with a specific flag.**
 
 ### Manual Launch
-Run the following command in your terminal:
-```bash
-chromium-browser --enable-speech-dispatcher
-```
+
+1. If Chromium is already running, please close all instances completely before proceeding.
+
+2. Open a terminal and run the following command:
+   ```bash
+   chromium-browser --enable-speech-dispatcher
+   ```
 
 ### Permanent Configuration
 
@@ -63,11 +86,14 @@ To avoid typing the flag every time, you can add it to the Chromium configuratio
    export CHROMIUM_FLAGS="$CHROMIUM_FLAGS --enable-speech-dispatcher"
    ```
 
-## Firefox and other browsers
+## Firefox
 
 In Firefox, `speech-dispatcher` is enabled by default, so no special configuration is required.
 
-Other browsers should also work, provided they have support for `speech-dispatcher`.
+## Customization
+
+You can change the default voices or speech parameters by editing the configuration files in:
+`~/.config/speech-dispatcher/modules/edge-tts.conf` or by modifying the wrapper scripts in `~/.local/share/edge-tts-linux-browser`.
 
 ## Uninstallation
 
@@ -75,7 +101,7 @@ To uninstall, you need to remove the files and directories created during setup.
 
 1.  Remove the `edge-tts` installation and `speech-dispatcher` configuration directories from your home folder:
     ```bash
-    rm -rf ~/edge-tts ~/.config/speech-dispatcher
+    rm -rf ~/.local/share/edge-tts-linux-browser ~/.config/speech-dispatcher
     ```
 
 2.  If you created the permanent configuration for Chromium, remove the system file as well (this requires root privileges):
