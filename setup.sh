@@ -288,22 +288,31 @@ if ! yesno "Ready to open the test page?"; then
     exit 1
 fi
 
+# NOTE: A browser restart is required to ensure a reliable connection with speech-dispatcher.
 if [ "$browser" = "firefox" ]; then
+    while pgrep -u "$USER" -x "firefox|firefox-esr|firefox-bin" >/dev/null 2>&1; do
+	cat <<EOF
+
+${BOLD}Firefox must be restarted to ensure a reliable connection with Speech Dispatcher.
+Please manually close ALL running instances of firefox.${RESET}
+
+EOF
+	read -p "Have you closed ALL firefox instances? (Press Enter to continue) " choice
+    done
+    
     echo "Launching the browser, please wait..."
     $browser "$FL_URL/#/?add-feeds=$FEEDS" >/dev/null 2>&1 &
     disown
 else
-    if [ "$flag" = "0" ]; then
-	while pgrep -u "$USER" -x chromium >/dev/null 2>&1; do
-	    cat <<EOF
+    while pgrep -u "$USER" -x chromium >/dev/null 2>&1; do
+	cat <<EOF
 
 ${BOLD}We need to restart Chromium with the --enable-speech-dispatcher flag.
-Please manually close all running instances of Chromium.${RESET}
+Please manually close ALL running instances of Chromium.${RESET}
 
 EOF
-	    read -p "Have you closed all Chromium instances? (Press Enter to continue) " choice
-	done
-    fi
+	read -p "Have you closed ALL Chromium instances? (Press Enter to continue) " choice
+    done
 
     echo "Launching the browser, please wait..."
     $browser --enable-speech-dispatcher "$FL_URL/#/?add-feeds=$FEEDS" >/dev/null 2>&1 &
