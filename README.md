@@ -3,25 +3,27 @@
 Transform your Linux browser's text-to-speech from robotic to natural. This project integrates Microsoft Edge's high-quality, neural TTS voices directly into your web browser using `edge-tts` and `speech-dispatcher`.
 
 ### How It Works
+
 Modern browsers use the **Web Speech API** for text-to-speech. On Linux, this API typically communicates with **Speech Dispatcher**.
 This project acts as a bridge:
 `Browser` → `Speech Dispatcher` → `Custom Wrapper Script` → `edge-tts (Neural Cloud Voices)`
 
 ### Features
-- **Natural Voices:** Access Microsoft Edge's neural TTS engines (multilingual).
-- **Seamless Integration:** Works with any website using the standard Web Speech API.
-- **One-Step Setup:** Automated configuration for Raspberry Pi OS and other Debian-based distros.
 
-Tested on Raspberry Pi OS Trixie (Debian 13), but it should work on many other Linux distributions.
+- **Natural Voices:** Access Microsoft Edge's neural TTS engines in multiple languages.
+- **Seamless Integration:** Works with any website using the standard Web Speech API.
+- **One-Step Setup:** Automated configuration for Raspberry Pi OS and other Debian-based distributions.
+
+Tested on Raspberry Pi OS Trixie (Debian 13), but it should work on other Linux distributions as well.
 
 > [!IMPORTANT]
-> This setup works best with native packages (`.deb`). Browsers installed via **Snap** or **Flatpak** may have sandbox restrictions that prevent communication with Speech Dispatcher.
+> This setup works best with native packages (`.deb`). On Ubuntu, Chromium and Firefox are installed via **Snap**, which usually makes Text-to-Speech (TTS) difficult to use. Firefox has special workarounds for Snap that might make a connection possible, though this remains untested.
 
 ## Installation
 
 For a quick, one-line installation, run the following command:
 ```bash
-bash <( curl -sSfL https://raw.githubusercontent.com/onitenjikunezumi/edge-tts-linux-browser/main/.github/install.sh )
+curl -sSfL https://raw.githubusercontent.com/onitenjikunezumi/edge-tts-linux-browser/main/.github/install.sh | bash
 ```
 
 If you prefer to inspect the project files before installing, follow these steps:
@@ -46,13 +48,14 @@ If you prefer to inspect the project files before installing, follow these steps
 
 ### Required Packages
 
-The installation script will check for and help you install the following dependencies:
+The installation script will check for the following dependencies and help you install them:
 
 - python3, python3-venv
 - speech-dispatcher
 - mpg123
 
 ## Usage
+
 Once installed, your browser will have access to new "Edge" voices.
 1. Restart your browser (following the Chromium instructions below if applicable).
 2. Open any site that supports text-to-speech.

@@ -6,41 +6,38 @@
 # Repository:  https://github.com/onitenjikunezumi/edge-tts-linux-browser
 #
 
+set -euo pipefail
+
+exec < /dev/tty
+
 TIMESTAMP=$(date +"%Y_%m%d"_%H%M)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 EDGETTS_DIR=~/.local/share/edge-tts-linux-browser
 CONFIG_DIR=~/.config/speech-dispatcher
 FL_URL="https://feedlingo.yagiful.com"
 
-RESET=$(tput sgr0)
-BOLD=$(tput bold)
-REV=$(tput smso)
-REV_END=$(tput rmso)
-
 #
 
-title(){
-    cat <<EOF
+BOLD=$'\033[1m'
+RESET=$'\033[0m'
 
-$BOLD# $1$RESET
-
-EOF
+bold(){
+    sed "s/\*\*\([^*]*\)\*\*/${BOLD}\1${RESET}/g"
 }
 
-section(){
-    cat <<EOF
-
-$BOLD## $1$RESET
-
-EOF
+mk(){
+    local line
+    while IFS= read -r line; do
+        case "$line" in
+            \#*\ *) echo "**$line**" | bold ;;
+            *) echo "$line" | bold ;;
+        esac
+    done
 }
 
-subsection(){
-    cat <<EOF
-
-$BOLD### $1$RESET
-
-EOF
+confirm(){
+    local choice
+    read -p "$BOLD> $1 (Press Enter)$RESET" choice
 }
 
 yesno(){
@@ -54,6 +51,11 @@ yesno(){
             * ) echo "Please answer y or n." ;;
         esac
     done
+}
+
+abort(){
+    echo "**${1}**" | bold 
+    exit 
 }
 
 new_dir(){
@@ -83,32 +85,48 @@ new_dir(){
     mkdir -p "$dir"
 }
 
+kill_speech_dispatcher(){
+    if [ -z "${kill_speech_dispatcher_flag:-}" ]; then
+        echo "Stopping existing speech-dispatcher processes..."
+        pkill -u "$USER" -x speech-dispatcher >/dev/null 2>&1 || true    
+        sleep 2
+        kill_speech_dispatcher_flag=1
+    fi
+}
+
+uninstall_instruction(){
+    cat <<EOF | mk
+**To uninstall the installed files, please remove the following directories:**
+- ${EDGETTS_DIR}
+- ${CONFIG_DIR}
+
+EOF
+}
+    
 #
 
-title "EDGE-TTS-LINUX-BROWSER"
+cat <<EOF | mk
 
-cat <<EOF
-This script installs edge-tts and configures your Linux system to support high-quality text-to-speech.
-It also enables your web browser to use natural edge-tts voices via the Web Speech API.
+# EDGE-TTS-LINUX-BROWSER
 
-Files and configurations will be installed in the following locations:
+This script integrates edge-tts to enable high-quality text-to-speech in multiple languages on Linux, and configures it to work with Chromium and Firefox.
 
-- $BOLD${EDGETTS_DIR}:$RESET edge-tts core and speech-dispatcher wrapper scripts.
-- $BOLD${CONFIG_DIR}:$RESET speech-dispatcher configuration files.
+**Components to install:**
+- edge-tts
+- speech-dispatcher
 
-Installation steps:
+**Installation steps:**
+1. Install edge-tts and speech-dispatcher integration files (${EDGETTS_DIR})
+2. Configure speech-dispatcher (${CONFIG_DIR})
+3. Test speech synthesis in the terminal
+4. Test speech synthesis in the browser
 
-1. Set up ${EDGETTS_DIR}
-2. Set up ${CONFIG_DIR}
-3. Test audio output in the terminal
-4. Test audio output in the browser (Optional; includes a look at FeedDeLingo)
+**Disclaimer:**
+This script is provided "as is" without warranty of any kind, either expressed or implied. The author is not responsible for any damage or loss of data that may result from the use of this script. By using this script, you agree to assume all risks associated with its use.
 
 EOF
 
-if ! yesno "Do you want to proceed with the installation?"; then
-    echo "Installation aborted."
-    exit 1
-fi
+yesno "Do you want to continue?" || abort "Aborting installation."
 
 #
 
@@ -117,64 +135,91 @@ if [ -f /proc/device-tree/model ] && grep -q "Raspberry Pi" /proc/device-tree/mo
     IS_RPI=0
 fi
 
+IS_UBUNTU=1
+if [ -f /etc/os-release ] && grep -q "ID=ubuntu" /etc/os-release; then
+    IS_UBUNTU=0
+fi
+
 IS_TRIXIE=1
 if [ -f /etc/os-release ] && grep -q "VERSION_CODENAME=trixie" /etc/os-release; then
     IS_TRIXIE=0
 fi
 
-if [ "$IS_RPI" != "0" -o "$IS_TRIXIE" != "0" ]; then
-    subsection "Warning: This script is intended for Raspberry Pi OS 13 (Trixie)"
-    if yesno "OS mismatch detected. The script may work on other Linux distributions, but it is untested. Do you want to continue anyway?"; then
-        echo "Continuing installation..."
-    else
-        echo "Installation aborted."
-        exit 1
-    fi
+if [ "$IS_RPI" = "0" -a "$IS_TRIXIE" = "0" ]; then
+    : # Do nothing
+else
+cat <<EOF | mk
+
+## Non-Raspberry Pi OS 13 (Trixie) environment detected.
+
+While this may work on other distributions, it has not been fully tested.
+
+- On Ubuntu, both Chromium and Firefox are installed via Snap, which generally makes Text-to-Speech (TTS) difficult to use. However, Firefox has special workarounds in place, so it might be possible to connect.
+- If required packages are missing, this script will attempt to install them using `sudo apt`. If you are using a Linux distribution with a different package manager, you may need to install the missing packages manually.
+
+EOF
+    yesno "Do you want to continue?" || abort "Installation aborted."
 fi 
 
 #
 
-apt_packages=""
+apt_packages=()
+
 if ! command -v python3 >/dev/null 2>&1; then
-    apt_packages="$apt_packages python3 python3-venv"
+    apt_packages+=("python3" "python3-venv")
 else
-    if ! python3 -m venv --help >/dev/null 2>&1; then
-        apt_packages="$apt_packages python3-venv"
+    tmp_venv=$(mktemp -d)
+    trap 'rm -rf "$tmp_venv"' EXIT
+    if ! python3 -m venv "$tmp_venv" >/dev/null 2>&1; then
+        apt_packages+=("python3-venv")
     fi
 fi
 
 if ! command -v spd-say >/dev/null 2>&1; then
-    apt_packages="$apt_packages speech-dispatcher"
+    apt_packages+=("speech-dispatcher")
 fi
 
 if ! command -v mpg123 >/dev/null 2>&1; then
-    apt_packages="$apt_packages mpg123"
+    apt_packages+=("mpg123")
 fi
 
-if [ -n "$apt_packages" ]; then
+if [ "${#apt_packages[@]}" -gt 0 ]; then
     apt_packages_installed=1
-    subsection "The following packages are missing:"
-    echo -e "packages: $apt_packages\n"
+    cat <<EOF | mk
+
+## Additional packages required
+
+Missing packages: ${apt_packages[*]}
+
+**Sudo privileges are required for installation.**
+
+EOF
     if command -v apt >/dev/null 2>&1; then    
         if yesno "Would you like to install them now?"; then
-            if sudo apt update && sudo apt install -y $apt_packages; then
+            if sudo apt update && sudo apt install -y "${apt_packages[@]}"; then
                 apt_packages_installed=0
             else
                 echo "Error: Package installation failed. Please check your permissions or network."
             fi
         fi
+    else
+        echo "Error: 'apt' package manager not found. Other installers are not supported."
     fi
 
     if [ "$apt_packages_installed" != 0 ]; then
-	echo "Please install the required packages manually before running this script again."
-	echo "Installation aborted."
-	exit 1
+        echo "Please install the required packages manually before running this script again."
+        abort "Installation aborted."
     fi
 fi
 
 #
 
-section "1. $EDGETTS_DIR: Installing edge-tts and the 'edge-tts-dispatch' wrapper"
+cat <<EOF | mk
+
+## 1. Install edge-tts and speech-dispatcher integration files (${EDGETTS_DIR})
+
+EOF
+
 if new_dir "$EDGETTS_DIR"; then
     cd "$EDGETTS_DIR"
     python3 -m venv venv
@@ -187,7 +232,12 @@ fi
 
 #
 
-section "2. $CONFIG_DIR: Configuring speech-dispatcher"
+cat <<EOF | mk
+
+## 2. Configure speech-dispatcher (${CONFIG_DIR})
+
+EOF
+
 if new_dir "$CONFIG_DIR"; then
     cd "$CONFIG_DIR"
     echo "Copying configuration files..."
@@ -196,132 +246,150 @@ fi
 
 #
 
-section "3. Test audio output in the terminal"
-read -p "(Press Enter to start the test) " choice
-echo "Stopping existing speech-dispatcher processes..."
-killall speech-dispatcher >/dev/null 2>&1
-sleep 1
-echo "Speaking a test phrase using spd-say..."
-spd-say -l en-us "This is a test of Edge-TTS using Speech Dispatcher." -w
-if ! yesno "Did you hear the voice clearly?"; then
-    cat <<EOF
+cat <<EOF | mk
 
-Configuration failed.
+## 3. Test speech synthesis in the terminal
 
-To uninstall, please remove the following directories:
-- ${EDGETTS_DIR}
-- ${CONFIG_DIR}
+Let's check if text-to-speech is working properly in the terminal.
+
+Before running the test, please ensure:
+- Standard audio files (like WAV or MP3) can be played on your Linux system.
+- Your speaker volume is set to an appropriate level.
 
 EOF
-    exit 1
+if yesno "Would you like to run the test?"; then
+    kill_speech_dispatcher
+    echo "Speaking a test phrase using spd-say..."
+    spd-say -l en-us "This is a test of Edge-TTS using Speech Dispatcher." -w
+    if ! yesno "Did you hear the voice clearly?"; then
+        cat <<EOF
+
+## Configuration failed
+
+EOF
+        uninstall_instruction
+        abort "Exiting."
+    fi
+else
+    echo "Skipping this test."
 fi
 
 #
 
-FEEDS="%7B%22version%22%3A1%2C%22feeds%22%3A%5B%7B%22url%22%3A%22http%3A%2F%2Ffeeds.bbci.co.uk%2Fnews%2Fworld%2Frss.xml%22%2C%22name%22%3A%22EN%3A%20BBC%20News%20-%20World%20News%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fnews.yahoo.com%2Frss%2Fworld%22%2C%22name%22%3A%22EN%3A%20Yahoo%20News%20-%20Latest%20News%20%26%20Headlines%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fwww.reforma.com%2Frss%2Fportada.xml%22%2C%22name%22%3A%22ES%3A%20Reforma%20(News)%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Ffeeds.elpais.com%2Fmrss-s%2Fpages%2Fep%2Fsite%2Felpais.com%2Fportada%22%2C%22name%22%3A%22ES%3A%20EL%20PA%C3%8DS%3A%20el%20peri%C3%B3dico%20global%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fwww.lefigaro.fr%2Frss%2Ffigaro_actualites.xml%22%2C%22name%22%3A%22FR%3A%20Le%20Figaro%20-%20Actualit%C3%A9%20en%20direct%20et%20informations%20en%20continu%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Ffeeds.cms.handelsblatt.com%2Fschlagzeilen%22%2C%22name%22%3A%22DE%3A%20Handelsblatt%20Schlagzeilen%20(News)%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fwww.bhaskar.com%2Frss-v1--category-1061.xml%22%2C%22name%22%3A%22HI%3A%20Dainik%20Bhaskar%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fnews.livedoor.com%2Ftopics%2Frss%2Ftop.xml%22%2C%22name%22%3A%22JA%3A%20Livedoor%20News%20(News%20Aggregation%20Site)%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fhnrss.org%2Fbest%22%2C%22name%22%3A%22EN%3A%20Hacker%20News%3A%20Best%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Ffeeds.arstechnica.com%2Farstechnica%2Findex%22%2C%22name%22%3A%22EN%3A%20Ars%20Technica%20-%20All%20content%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Frocketnews24.com%2Ffeed%2F%22%2C%22name%22%3A%22JA%3A%20RocketNews24%20(Quirky%20Japan%20News)%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fsoranews24.com%2Ffeed%2F%22%2C%22name%22%3A%22EN%3A%20SoraNews24%20%20-%20the%20English-language%20sister%20site%20of%20RocketNews24%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fanimeanime.jp%2Frss20%2Findex.rdf%22%2C%22name%22%3A%22JA%3A%20Anime!%20Anime!%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%5D%7D"
+FEEDS="%7B%22version%22%3A1%2C%22feeds%22%3A%5B%7B%22url%22%3A%22http%3A%2F%2Ffeeds.bbci.co.uk%2Fnews%2Fworld%2Frss.xml%22%2C%22name%22%3A%22EN%3A%20BBC%20News%20-%20World%20News%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fnews.yahoo.com%2Frss%2Fworld%22%2C%22name%22%3A%22EN%3A%20Yahoo%20News%20-%20Latest%20News%20%26%20Headlines%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fwww.reforma.com%2Frss%2Fportada.xml%22%2C%22name%22%3A%22ES%3A%20Reforma%20(News)%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Ffeeds.elpais.com%2Fmrss-s%2Fpages%2Fep%2Fsite%2Felpais.com%2Fportada%22%2C%22name%22%3A%22ES%3A%20EL%20PA%C3%8DS%3A%20el%20periodico%20global%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fwww.lefigaro.fr%2Frss%2Ffigaro_actualites.xml%22%2C%22name%22%3A%22FR%3A%20Le%20Figaro%20-%20Actualite%20en%20direct%20et%20informations%20en%20continu%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Ffeeds.cms.handelsblatt.com%2Fschlagzeilen%22%2C%22name%22%3A%22DE%3A%20Handelsblatt%20Schlagzeilen%20(News)%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fwww.bhaskar.com%2Frss-v1--category-1061.xml%22%2C%22name%22%3A%22HI%3A%20Dainik%20Bhaskar%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fnews.livedoor.com%2Ftopics%2Frss%2Ftop.xml%22%2C%22name%22%3A%22JA%3A%20Livedoor%20News%20(News%20Aggregation%20Site)%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fhnrss.org%2Fbest%22%2C%22name%22%3A%22EN%3A%20Hacker%20News%3A%20Best%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Ffeeds.arstechnica.com%2Farstechnica%2Findex%22%2C%22name%22%3A%22EN%3A%20Ars%20Technica%20-%20All%20content%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Frocketnews24.com%2Ffeed%2F%22%2C%22name%22%3A%22JA%3A%20RocketNews24%20(Quirky%20Japan%20News)%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fsoranews24.com%2Ffeed%2F%22%2C%22name%22%3A%22EN%3A%20SoraNews24%20%20-%20the%20English-language%20sister%20site%20of%20RocketNews24%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%2C%7B%22url%22%3A%22https%3A%2F%2Fanimeanime.jp%2Frss20%2Findex.rdf%22%2C%22name%22%3A%22JA%3A%20Anime!%20Anime!%22%2C%22summarizeContent%22%3Atrue%2C%22summaryLevel%22%3A2%7D%5D%7D"
 
-section "4. Test audio output in the browser"
+cat <<EOF | mk
 
-if command -v "chromium-browser" >/dev/null 2>&1; then
-    browser="chromium-browser"
-    flag=0
-elif command -v "chromium" >/dev/null 2>&1; then
-    browser="chromium"
-    flag=0
-elif command -v "firefox" >/dev/null 2>&1; then
-    browser="firefox"
-    flag=1
-else
-    echo "No supported browser detected."
-    echo "Skipping browser test."
-    exit 1
-fi
+## 4. Test speech synthesis in the browser
 
-echo -e "Detected browser: $browser\n"
-if [ "$flag" = "0" ]; then
-    cat <<EOF
-${BOLD}To use the Web Speech API in this browser, it must be launched with the following flag:
-
-${REV}$browser --enable-speech-dispatcher${RESET}
-
-You can configure your browser to use this flag by default. See README.md for details.
+Let's check if text-to-speech works correctly in your web browser.
 
 EOF
-fi
+if yesno "Would you like to run this test?"; then
+    browser=""
+    flag=0
+    if [ "$IS_UBUNTU" = "1" ] && command -v "chromium-browser" >/dev/null 2>&1; then
+        browser="chromium-browser"
+        flag=0
+    elif [ "$IS_UBUNTU" = "1" ] && command -v "chromium" >/dev/null 2>&1; then
+        browser="chromium"
+        flag=0
+    elif command -v "firefox" >/dev/null 2>&1; then
+        browser="firefox"
+        flag=1
+    fi
 
-if ! yesno "Would you like to launch the browser with the required flag to test the Web Speech API?"; then
-    echo "Skipping browser test."
-    exit 1
-fi
+    if [ -n "$browser" ]; then
+        if [ "$flag" = 0 ]; then
+            # chromium
+            cat <<EOF | mk
 
-cat <<EOF
+Detected browser: $browser
 
-Clearing the screen in 3 seconds...
+**Note: To use text-to-speech in this browser, you must launch it with the following flag:**
+
+$browser --enable-speech-dispatcher
+
+You can also configure it to launch with this flag automatically. Please refer to the **README.md** for details.
 
 EOF
-sleep 3
-clear
+            confirm "Proceed"
 
-cat <<EOF
+	    while pgrep -u "$USER" -x chromium >/dev/null 2>&1; do
+cat <<EOF | mk
 
-${BOLD}We will now perform a speech test using FeedDeLingo (free).${RESET}
+**Active Chromium instance detected.**
+
+Please close **ALL** running Chromium instances **MANUALLY.**
+
+**Reason:** The tests require Chromium to be launched with the specific flags (--enable-speech-dispatcher), which is not possible when another instance is already running.
+
+EOF
+                confirm "Have you closed all Chromium instances?"
+            done
+        else
+            # firefox
+            cat <<EOF | mk
+
+Detected browser: $browser
+
+We will now run the test using this browser.
+
+EOF
+            confirm "Proceed"
+        fi
+
+        cat <<EOF | mk
+
+## Browser Test with FeedDeLingo
 
 FeedDeLingo is an AI-powered RSS feed reader designed for language learning.
 It allows you to follow news from around the world in any language.
 We will use its playback feature to verify that multi-language audio is working correctly.
 
-Once FeedDeLingo loads:
-${BOLD}
+**Once FeedDeLingo loads:**
 1. A list of test feeds will appear. Click "Import Selected Feeds" to proceed.
-2. Select a news site in a ${REV}language foreign to you${REV_END}.
+2. Select a news site in a **LANGUAGE FOREIGN TO YOU.**
 3. Choose an article that interests you. (If AI analysis is blocked, please try a different article.)
 4. When "Read with AI Assist" appears, click it to open the text-to-speech view.
-${RESET}
-NOTE:
-- Loading may take a moment while AI processes the content.
-- The "Read with AI Assist" button will not appear for sites in your native language. ${REV}Please ensure you select a foreign language site.${REV_END}
 
 EOF
+        confirm "Proceed"
 
-if ! yesno "Ready to open the test page?"; then
-    echo "Skipping browser test."
-    exit 1
+        cat <<EOF | mk
+
+This setup script will exit after opening FeedDeLingo in your browser.
+We hope your browser test goes smoothly!
+
+**As a reminder:** When using FeedDeLingo, make sure to select a news site in a **LANGUAGE FOREIGN TO YOU.**
+
+EOF
+        confirm "Proceed"
+
+        kill_speech_dispatcher
+        cat <<EOF | mk
+
+Opening FeedDeLingo in the browser...
+
+EOF
+        if [ "$flag" = 0 ]; then
+            # chromium
+            $browser --enable-speech-dispatcher "$FL_URL/#/?add-feeds=$FEEDS" >/dev/null 2>&1 &
+        else
+            # firefox
+            $browser "$FL_URL/#/?add-feeds=$FEEDS" >/dev/null 2>&1 &
+        fi
+        disown
+        sleep 10
+    else
+        cat <<EOF | mk
+No supported browser detected.
+Skipping browser test.
+EOF
+    fi
 fi
 
-# NOTE: A browser restart is required to ensure a reliable connection with speech-dispatcher.
-if [ "$browser" = "firefox" ]; then
-    while pgrep -u "$USER" -x "firefox|firefox-esr|firefox-bin" >/dev/null 2>&1; do
-	cat <<EOF
+#
 
-${BOLD}Firefox must be restarted to ensure a reliable connection with Speech Dispatcher.
-Please manually close ALL running instances of firefox.${RESET}
-
-EOF
-	read -p "Have you closed ALL firefox instances? (Press Enter to continue) " choice
-    done
-    
-    echo "Launching the browser, please wait..."
-    $browser "$FL_URL/#/?add-feeds=$FEEDS" >/dev/null 2>&1 &
-    disown
-else
-    while pgrep -u "$USER" -x chromium >/dev/null 2>&1; do
-	cat <<EOF
-
-${BOLD}We need to restart Chromium with the --enable-speech-dispatcher flag.
-Please manually close ALL running instances of Chromium.${RESET}
-
-EOF
-	read -p "Have you closed ALL Chromium instances? (Press Enter to continue) " choice
-    done
-
-    echo "Launching the browser, please wait..."
-    $browser --enable-speech-dispatcher "$FL_URL/#/?add-feeds=$FEEDS" >/dev/null 2>&1 &
-    disown
-fi
-
-sleep 20
-cat <<EOF
-
-The setup script has finished. We hope the browser test is successful!
-
-EOF
+uninstall_instruction
+echo "**Setup script completed.**" | mk
