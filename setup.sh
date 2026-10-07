@@ -155,7 +155,7 @@ cat <<EOF | mk
 While this may work on other distributions, it has not been fully tested.
 
 - On Ubuntu, both Chromium and Firefox are installed via Snap, which generally makes Text-to-Speech (TTS) difficult to use. However, Firefox has special workarounds in place, so it might be possible to connect.
-- If required packages are missing, this script will attempt to install them using `sudo apt`. If you are using a Linux distribution with a different package manager, you may need to install the missing packages manually.
+- If required packages are missing, this script will attempt to install them using **sudo apt**. If you are using a Linux distribution with a different package manager, you may need to install the missing packages manually.
 
 EOF
     yesno "Do you want to continue?" || abort "Installation aborted."
